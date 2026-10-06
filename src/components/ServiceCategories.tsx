@@ -19,7 +19,7 @@ export default function ServiceCategories() {
         {serviceCategories.map((cat) => (
           <Link
             key={cat.id}
-            to={`/technicians?category=${cat.id}`}
+            to={`/technicians?name=${encodeURIComponent(cat.name)}`}
             className="group card flex flex-col items-center gap-3 p-5 text-center transition-all hover:-translate-y-1 hover:shadow-lift"
           >
             <div

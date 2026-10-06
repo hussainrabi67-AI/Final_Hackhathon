@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   uploadProblemImage, createServiceRequest, diagnoseProblem, markRequestSolved,
 } from '../lib/aiService'
+import { sendServiceRequestToN8n } from '../lib/n8nService'
 import type { AIDiagnosis, ChatMessage } from '../types/ai'
 
 function uid() {
@@ -113,6 +114,21 @@ export default function AIAssistantPage() {
         diagnosis,
       }
       setMessages((m) => [...m, aiMsg])
+
+      // Trigger n8n webhook (non-blocking, fails gracefully if offline)
+      sendServiceRequestToN8n({
+        request_id: requestId,
+        user_id: userId,
+        category_id: null,
+        category_name: diagnosis.recommended_category || null,
+        title: input.trim().slice(0, 80),
+        description: input.trim(),
+        location: null,
+        urgency: diagnosis.urgency || 'medium',
+        professional_required: typeof diagnosis.professional_required === 'boolean'
+          ? diagnosis.professional_required
+          : true,
+      })
 
       // Reset form
       setInput('')

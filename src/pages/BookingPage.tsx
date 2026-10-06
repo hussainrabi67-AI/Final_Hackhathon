@@ -7,8 +7,9 @@ import {
 import { useAuth } from '../context/AuthContext'
 import {
   fetchBookingById, updateBookingStatus, updateBookingScheduledAt,
-  fetchReviewForBooking, createReview, fetchOwnTechnicianRecord,
+  fetchReviewForBooking, createReview,
 } from '../lib/jobService'
+import { fetchOwnTechnicianRecord } from '../lib/technicianService'
 import {
   BOOKING_STEPS, BOOKING_STATUS_LABELS,
 } from '../types/job'

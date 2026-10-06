@@ -9,6 +9,9 @@ import {
   fetchServiceCategories, fetchOwnTechnicianRecord, fetchOwnTechnicianServices,
   updateTechnicianProfile, setTechnicianServices, uploadTechnicianAvatar,
 } from '../lib/technicianService'
+import { fetchTechnicianBookings } from '../lib/jobService'
+import { BOOKING_STATUS_LABELS } from '../types/job'
+import type { BookingWithDetails } from '../types/job'
 import TechnicianRequests from '../components/TechnicianRequests'
 import type { ServiceCategoryDB } from '../types/technician'
 
@@ -76,7 +79,8 @@ function TechnicianDashboard({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState<'profile' | 'requests'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'requests' | 'jobs'>('profile')
+  const [jobs, setJobs] = useState<BookingWithDetails[]>([])
 
   // Form fields
   const [profession, setProfession] = useState('')
@@ -105,8 +109,12 @@ function TechnicianDashboard({
             setAvailability(tech.availability || 'available')
             setAvatarUrl(tech.avatar_url || null)
 
-            const services = await fetchOwnTechnicianServices(tech.id)
+            const [services, techBookings] = await Promise.all([
+              fetchOwnTechnicianServices(tech.id),
+              fetchTechnicianBookings(tech.id),
+            ])
             setSelectedServices(new Set(services.map((s) => s.id)))
+            setJobs(techBookings)
           }
         }
       } catch (err) {
@@ -261,6 +269,16 @@ function TechnicianDashboard({
             >
               <ClipboardList className="h-4 w-4" /> Service Requests
             </button>
+            <button
+              onClick={() => setActiveTab('jobs')}
+              className={`flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
+                activeTab === 'jobs'
+                  ? 'bg-primary text-white shadow-soft'
+                  : 'bg-white text-ink/70 ring-1 ring-primary/15 hover:bg-primary-light'
+              }`}
+            >
+              <Briefcase className="h-4 w-4" /> My Jobs {jobs.length > 0 && `(${jobs.length})`}
+            </button>
           </div>
         )}
 
@@ -397,9 +415,57 @@ function TechnicianDashboard({
               )}
             </button>
           </div>
-        ) : (
+        ) : activeTab === 'requests' ? (
           <div className="mt-6">
             <TechnicianRequests technicianId={technician.id as string} />
+          </div>
+        ) : (
+          <div className="mt-6">
+            {jobs.length === 0 ? (
+              <div className="rounded-2xl bg-primary-light/30 p-6 text-center">
+                <Briefcase className="mx-auto h-10 w-10 text-primary/40" />
+                <p className="mt-3 text-sm text-ink/50">
+                  No accepted jobs yet. Submit quotes on service requests to win jobs.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {jobs.map((job) => (
+                  <Link
+                    key={job.id}
+                    to={`/bookings/${job.id}`}
+                    className="card block p-5 transition-all hover:shadow-lift"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {job.request_category_icon && <span>{job.request_category_icon}</span>}
+                          <p className="font-semibold text-ink">{job.request_category_name || 'Service Job'}</p>
+                        </div>
+                        <p className="mt-1 text-sm text-ink/70 line-clamp-1">{job.request_title || job.request_description}</p>
+                        {job.location && (
+                          <p className="mt-1 flex items-center gap-1 text-xs text-ink/50">
+                            <MapPin className="h-3.5 w-3.5" /> {job.location}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {job.quote_amount !== null && (
+                          <p className="text-base font-bold text-primary">Rs {job.quote_amount}</p>
+                        )}
+                        <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          job.status === 'completed' ? 'bg-success/10 text-success' :
+                          job.status === 'cancelled' ? 'bg-error/10 text-error' :
+                          'bg-primary-light text-primary-dark'
+                        }`}>
+                          {BOOKING_STATUS_LABELS[job.status] || job.status}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

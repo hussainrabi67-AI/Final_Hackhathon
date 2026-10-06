@@ -4,6 +4,8 @@ import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react'
 import Logo from './Logo'
 import { useAuth } from '../context/AuthContext'
 
+import NotificationBell from './NotificationBell'
+
 const navItems = [
   { label: 'Home', to: '/' },
   { label: 'Services', to: '/services' },
@@ -51,6 +53,7 @@ export default function Header() {
         <div className="hidden items-center gap-2 md:flex">
           {session ? (
             <>
+              <NotificationBell />
               <Link to={dashboardLink} className="btn-ghost text-sm">
                 <LayoutDashboard className="h-4 w-4" /> Dashboard
               </Link>
@@ -70,13 +73,16 @@ export default function Header() {
           )}
         </div>
 
-        <button
-          onClick={() => setOpen(!open)}
-          className="rounded-xl p-2 text-ink transition-colors hover:bg-primary-light md:hidden"
-          aria-label="Toggle menu"
-        >
-          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          {session && <NotificationBell />}
+          <button
+            onClick={() => setOpen(!open)}
+            className="rounded-xl p-2 text-ink transition-colors hover:bg-primary-light"
+            aria-label="Toggle menu"
+          >
+            {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </div>
 
       {open && (

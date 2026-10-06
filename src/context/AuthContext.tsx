@@ -36,13 +36,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, user_id, name, email, phone, role, avatar_url')
-      .eq('user_id', userId)
-      .maybeSingle()
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, user_id, name, email, phone, role, avatar_url')
+        .eq('user_id', userId)
+        .maybeSingle()
 
-    setProfile(data as Profile | null)
+      setProfile(data as Profile | null)
+    } catch {
+      setProfile(null)
+    }
   }
 
   useEffect(() => {
@@ -50,11 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       if (!mounted) return
-      setSession(data.session)
-      if (data.session?.user) {
+      setSession(data?.session ?? null)
+      if (data?.session?.user) {
         await loadProfile(data.session.user.id)
       }
       setLoading(false)
+    }).catch(() => {
+      if (mounted) setLoading(false)
     })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -72,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false
-      sub.subscription.unsubscribe()
+      sub?.subscription?.unsubscribe()
     }
   }, [])
 

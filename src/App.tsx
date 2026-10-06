@@ -51,6 +51,22 @@ export default function App() {
             }
           />
           <Route
+            path="/requests/:requestId/quotes"
+            element={
+              <ProtectedRoute allowedRoles={['user']}>
+                <QuotesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bookings/:id"
+            element={
+              <ProtectedRoute allowedRoles={['user', 'technician', 'admin']}>
+                <BookingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['admin']}>

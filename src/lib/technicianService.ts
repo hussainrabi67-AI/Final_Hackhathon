@@ -2,126 +2,201 @@ import { supabase } from './supabase'
 import type {
   PublicTechnician, ServiceCategoryDB, ReviewWithUser, TechnicianServiceItem,
 } from '../types/technician'
+import { serviceCategories } from '../data/serviceCategories'
+
+const categoryIconMap: Record<string, string> = {
+  plumber: '🚰',
+  electrician: '⚡',
+  ac: '❄️',
+  'ac / hvac': '❄️',
+  hvac: '❄️',
+  car: '🚗',
+  'car workshop': '🚗',
+  bike: '🏍️',
+  'bike mechanic': '🏍️',
+  cleaning: '🧹',
+  carpenter: '🔨',
+  solar: '☀️',
+  appliance: '🧺',
+  'appliance repair': '🧺',
+  painter: '🎨',
+  pest: '🐜',
+  'pest control': '🐜',
+  general: '🔧',
+  'general maintenance': '🔧',
+}
+
+export function getCategoryIcon(nameOrId?: string | null): string {
+  if (!nameOrId) return '🔧'
+  const key = nameOrId.toLowerCase().trim()
+  return categoryIconMap[key] || categoryIconMap[key.replace(/\s+/g, '')] || '🔧'
+}
 
 export async function fetchServiceCategories(): Promise<ServiceCategoryDB[]> {
-  const { data, error } = await supabase
-    .from('service_categories')
-    .select('id, name, description, icon, image_url, is_active')
-    .eq('is_active', true)
-    .order('name')
+  try {
+    const { data, error } = await supabase
+      .from('service_categories')
+      .select('id, name, description, icon, image_url, is_active')
+      .eq('is_active', true)
+      .order('name')
 
-  if (error) throw new Error(error.message)
-  return (data ?? []) as ServiceCategoryDB[]
-}
-
-export async function fetchVerifiedTechnicians(categoryId?: string | null): Promise<PublicTechnician[]> {
-  let query = supabase
-    .from('public_technicians')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  const { data, error } = await query
-
-  if (error) throw new Error(error.message)
-
-  let technicians = (data ?? []) as PublicTechnician[]
-
-  // Filter by category in application since the view returns services as JSON
-  if (categoryId) {
-    technicians = technicians.filter((t) =>
-      t.services.some((s) => s.id === categoryId),
-    )
+    if (!error && data && data.length > 0) {
+      return (data as ServiceCategoryDB[]).map((cat) => ({
+        ...cat,
+        icon: cat.icon || getCategoryIcon(cat.name) || getCategoryIcon(cat.id),
+      }))
+    }
+  } catch (err) {
+    console.warn('Could not load service categories from database:', err)
   }
 
-  return technicians
-}
-
-export async function fetchTechnicianById(id: string): Promise<PublicTechnician | null> {
-  const { data, error } = await supabase
-    .from('public_technicians')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle()
-
-  if (error) throw new Error(error.message)
-  return data as PublicTechnician | null
-}
-
-export async function fetchReviewsForTechnician(technicianId: string): Promise<ReviewWithUser[]> {
-  const { data, error } = await supabase
-    .from('reviews')
-    .select(`
-      id,
-      rating,
-      comment,
-      created_at,
-      user_id
-    `)
-    .eq('technician_id', technicianId)
-    .order('created_at', { ascending: false })
-
-  if (error) throw new Error(error.message)
-
-  const reviews = (data ?? []) as Array<{
-    id: string
-    rating: number
-    comment: string | null
-    created_at: string
-    user_id: string
-  }>
-
-  // Fetch reviewer names from profiles
-  const userIds = [...new Set(reviews.map((r) => r.user_id))]
-  if (userIds.length === 0) return []
-
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('user_id, name')
-    .in('user_id', userIds)
-
-  const nameMap = new Map<string, string | null>(
-    (profiles ?? []).map((p) => [p.user_id, p.name]),
-  )
-
-  return reviews.map((r) => ({
-    id: r.id,
-    rating: r.rating,
-    comment: r.comment,
-    created_at: r.created_at,
-    user_name: nameMap.get(r.user_id) ?? null,
+  // Ensure default categories with full profession emojis and details
+  return serviceCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    icon: c.emoji,
+    image_url: null,
+    is_active: true,
   }))
 }
 
-export async function fetchOwnTechnicianRecord(profileId: string) {
-  const { data, error } = await supabase
-    .from('technicians')
-    .select('*')
-    .eq('profile_id', profileId)
-    .maybeSingle()
+export async function fetchVerifiedTechnicians(categoryId?: string | null): Promise<PublicTechnician[]> {
+  try {
+    const { data, error } = await supabase
+      .from('public_technicians')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-  if (error) throw new Error(error.message)
-  return data
+    if (error) {
+      console.warn('Error fetching technicians from database:', error.message)
+      return []
+    }
+
+    let technicians = (data ?? []) as PublicTechnician[]
+
+    if (categoryId) {
+      technicians = technicians.filter((t) =>
+        t.services?.some((s) => s.id === categoryId || s.name.toLowerCase().includes(categoryId.toLowerCase())),
+      )
+    }
+
+    return technicians
+  } catch (err) {
+    console.warn('Could not load technicians from database:', err)
+    return []
+  }
+}
+
+export async function fetchTechnicianById(id: string): Promise<PublicTechnician | null> {
+  try {
+    const { data, error } = await supabase
+      .from('public_technicians')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error) {
+      console.warn('Error fetching technician by ID:', error.message)
+      return null
+    }
+
+    return (data as PublicTechnician) ?? null
+  } catch (err) {
+    console.warn('Could not load technician details from database:', err)
+    return null
+  }
+}
+
+export async function fetchReviewsForTechnician(technicianId: string): Promise<ReviewWithUser[]> {
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        id,
+        rating,
+        comment,
+        created_at,
+        user_id
+      `)
+      .eq('technician_id', technicianId)
+      .order('created_at', { ascending: false })
+
+    if (error || !data || data.length === 0) {
+      return []
+    }
+
+    const reviews = data as Array<{
+      id: string
+      rating: number
+      comment: string | null
+      created_at: string
+      user_id: string
+    }>
+
+    const userIds = [...new Set(reviews.map((r) => r.user_id))]
+    if (userIds.length === 0) return []
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, name')
+      .in('user_id', userIds)
+
+    const nameMap = new Map<string, string | null>(
+      (profiles ?? []).map((p) => [p.user_id, p.name]),
+    )
+
+    return reviews.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment,
+      created_at: r.created_at,
+      user_name: nameMap.get(r.user_id) ?? null,
+    }))
+  } catch (err) {
+    console.warn('Could not load reviews from database:', err)
+    return []
+  }
+}
+
+export async function fetchOwnTechnicianRecord(profileId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('technicians')
+      .select('*')
+      .eq('profile_id', profileId)
+      .maybeSingle()
+
+    if (error) return null
+    return data
+  } catch {
+    return null
+  }
 }
 
 export async function fetchOwnTechnicianServices(technicianId: string): Promise<TechnicianServiceItem[]> {
-  const { data, error } = await supabase
-    .from('technician_services')
-    .select(`
-      service_category_id,
-      service_categories!inner(id, name, icon)
-    `)
-    .eq('technician_id', technicianId)
+  try {
+    const { data, error } = await supabase
+      .from('technician_services')
+      .select(`
+        service_category_id,
+        service_categories!inner(id, name, icon)
+      `)
+      .eq('technician_id', technicianId)
 
-  if (error) throw new Error(error.message)
+    if (error) return []
 
-  return (data ?? []).map((row) => {
-    const cat = row.service_categories as unknown as { id: string; name: string; icon: string | null }
-    return {
-      id: cat.id,
-      name: cat.name,
-      icon: cat.icon,
-    }
-  })
+    return (data ?? []).map((row) => {
+      const cat = row.service_categories as unknown as { id: string; name: string; icon: string | null }
+      return {
+        id: cat.id,
+        name: cat.name,
+        icon: cat.icon,
+      }
+    })
+  } catch {
+    return []
+  }
 }
 
 export async function updateTechnicianProfile(
@@ -148,7 +223,6 @@ export async function setTechnicianServices(
   technicianId: string,
   categoryIds: string[],
 ): Promise<void> {
-  // Fetch current services
   const { data: current, error: fetchErr } = await supabase
     .from('technician_services')
     .select('id, service_category_id')
@@ -159,7 +233,6 @@ export async function setTechnicianServices(
   const currentIds = new Set((current ?? []).map((r) => r.service_category_id as string))
   const newIds = new Set(categoryIds)
 
-  // Delete removed
   const toDelete = (current ?? []).filter((r) => !newIds.has(r.service_category_id))
   if (toDelete.length > 0) {
     const { error: delErr } = await supabase
@@ -169,7 +242,6 @@ export async function setTechnicianServices(
     if (delErr) throw new Error(delErr.message)
   }
 
-  // Insert new
   const toInsert = categoryIds.filter((id) => !currentIds.has(id))
   if (toInsert.length > 0) {
     const { error: insErr } = await supabase
@@ -180,26 +252,36 @@ export async function setTechnicianServices(
 }
 
 export async function uploadTechnicianAvatar(file: File, userId: string): Promise<string> {
-  const ext = file.name.split('.').pop() || 'jpg'
-  const fileName = `${userId}/avatar-${Date.now()}.${ext}`
+  try {
+    const ext = file.name.split('.').pop() || 'jpg'
+    const fileName = `${userId}/avatar-${Date.now()}.${ext}`
 
-  const { error } = await supabase.storage
-    .from('problem-images')
-    .upload(fileName, file, { cacheControl: '3600', upsert: true })
+    const { error } = await supabase.storage
+      .from('problem-images')
+      .upload(fileName, file, { cacheControl: '3600', upsert: true })
 
-  if (error) throw new Error(error.message)
+    if (error) throw new Error(error.message)
 
-  const { data } = supabase.storage.from('problem-images').getPublicUrl(fileName)
-  return data.publicUrl
+    const { data } = supabase.storage.from('problem-images').getPublicUrl(fileName)
+    return data.publicUrl
+  } catch (err) {
+    throw err instanceof Error ? err : new Error('Could not upload photo')
+  }
 }
 
 export async function findCategoryIdByName(name: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('service_categories')
-    .select('id')
-    .eq('name', name)
-    .maybeSingle()
+  try {
+    const { data, error } = await supabase
+      .from('service_categories')
+      .select('id')
+      .ilike('name', `%${name}%`)
+      .maybeSingle()
 
-  if (error) return null
-  return data?.id ?? null
+    if (error || !data) {
+      return null
+    }
+    return data.id ?? null
+  } catch {
+    return null
+  }
 }

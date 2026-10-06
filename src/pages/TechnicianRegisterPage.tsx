@@ -89,6 +89,26 @@ export default function TechnicianRegisterPage() {
         bio: bio || null,
         verification_status: 'pending',
       })
+
+      // Notify admins of new registration awaiting verification
+      try {
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('role', 'admin')
+
+        for (const admin of admins ?? []) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            type: 'technician_registered',
+            title: 'New Technician Registration',
+            message: `${name || 'A technician'} (${profession || 'Specialist'}) registered and is awaiting verification.`,
+            read: false,
+          })
+        }
+      } catch {
+        // Ignore notification error
+      }
     }
 
     setLoading(false)

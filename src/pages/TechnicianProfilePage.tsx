@@ -9,6 +9,7 @@ import {
   fetchTechnicianById, fetchReviewsForTechnician,
 } from '../lib/technicianService'
 import { createServiceRequest } from '../lib/aiService'
+import { sendServiceRequestToN8n } from '../lib/n8nService'
 import type { PublicTechnician, ReviewWithUser } from '../types/technician'
 
 export default function TechnicianProfilePage() {
@@ -70,6 +71,19 @@ export default function TechnicianProfilePage() {
       if (!requestId) {
         throw new Error('Could not create your service request. Please try again.')
       }
+
+      // Trigger n8n webhook (non-blocking)
+      sendServiceRequestToN8n({
+        request_id: requestId,
+        user_id: session.user.id,
+        category_id: firstService?.id ?? null,
+        category_name: firstService?.name ?? technician.profession ?? null,
+        title: `Service request for ${technician.profession || technician.name || 'technician'}`,
+        description: `Service request for ${technician.profession || technician.name || 'technician'}`,
+        location: technician.service_area || null,
+        urgency: 'medium',
+        professional_required: true,
+      })
 
       setRequestSuccess(true)
       setSearchParams({})
